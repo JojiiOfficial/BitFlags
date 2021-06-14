@@ -1,19 +1,16 @@
-use std::{
-    fmt::{Debug, Formatter},
-    ops::{BitAnd, BitOr, BitXor, Not, Shl},
-};
+use std::ops::{BitAnd, BitOr, BitXor, Not, Shl};
 
-#[derive(Clone, Copy)]
-pub struct BitFlag<T: BitflagAble<T>> {
+#[derive(Clone, Copy, Default)]
+pub struct BitFlag<T: BitflagAble> {
     val: T,
 }
 
-pub trait BitflagAble<T>:
-    BitOr<Output = T>
-    + BitAnd<Output = T>
-    + BitXor<Output = T>
-    + Shl<Output = T>
-    + Not<Output = T>
+pub trait BitflagAble:
+    BitOr<Output = Self>
+    + BitAnd<Output = Self>
+    + BitXor<Output = Self>
+    + Shl<Output = Self>
+    + Not<Output = Self>
     + Default
     + Copy
     + PartialEq
@@ -21,12 +18,12 @@ pub trait BitflagAble<T>:
 {
 }
 
-impl<T, U> BitflagAble<T> for U where
-    U: BitOr<Output = T>
-        + BitAnd<Output = T>
-        + BitXor<Output = T>
-        + Shl<Output = T>
-        + Not<Output = T>
+impl<U> BitflagAble for U where
+    U: BitOr<Output = U>
+        + BitAnd<Output = U>
+        + BitXor<Output = U>
+        + Shl<Output = U>
+        + Not<Output = U>
         + Default
         + Copy
         + PartialEq
@@ -34,15 +31,15 @@ impl<T, U> BitflagAble<T> for U where
 {
 }
 
-impl<T: BitflagAble<T>> BitFlag<T> {
+impl<T: BitflagAble> BitFlag<T> {
     /// Creates a new BitFlag value
     pub fn new() -> Self {
-        Self { val: T::default() }
+        Self::default()
     }
 
     /// Sets a bit at the given `pos` to `val`
     pub fn set(&mut self, pos: T, val: bool) {
-        let mask = T::from(1 as u8) << pos;
+        let mask = T::from(1_u8) << pos;
 
         if val {
             self.val = self.val | mask;
@@ -53,7 +50,7 @@ impl<T: BitflagAble<T>> BitFlag<T> {
 
     /// Gets a bit at the given [`pos`]
     pub fn get(&self, pos: T) -> bool {
-        let mask = T::from(1 as u8) << pos;
+        let mask = T::from(1_u8) << pos;
         (self.val & mask) == mask
     }
 
