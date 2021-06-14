@@ -8,14 +8,6 @@ pub struct BitFlag<T: BitflagAble<T>> {
     val: T,
 }
 
-impl BitflagAble<u8> for u8 {}
-impl BitflagAble<u16> for u16 {}
-impl BitflagAble<u32> for u32 {}
-impl BitflagAble<u64> for u64 {}
-impl BitflagAble<i16> for i16 {}
-impl BitflagAble<i32> for i32 {}
-impl BitflagAble<i64> for i64 {}
-
 pub trait BitflagAble<T>:
     BitOr<Output = T>
     + BitAnd<Output = T>
@@ -26,6 +18,19 @@ pub trait BitflagAble<T>:
     + Copy
     + PartialEq
     + From<u8>
+{
+}
+
+impl<T, U> BitflagAble<T> for U where
+    U: BitOr<Output = T>
+        + BitAnd<Output = T>
+        + BitXor<Output = T>
+        + Shl<Output = T>
+        + Not<Output = T>
+        + Default
+        + Copy
+        + PartialEq
+        + From<u8>
 {
 }
 
