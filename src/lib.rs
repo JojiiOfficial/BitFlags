@@ -1,11 +1,24 @@
 use std::{
-    fmt::Display,
-    ops::{BitAnd, BitOr, BitXor, Not, Shl},
+    fmt::{Binary, Debug, Display},
+    ops::{Add, AddAssign, BitAnd, BitOr, BitXor, Not, Shl},
 };
 
 #[derive(Clone, Copy, Default)]
 pub struct BitFlag<T: BitflagAble> {
     val: T,
+}
+
+impl<T: BitflagAble> Debug for BitFlag<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self)
+    }
+}
+
+impl<T: BitflagAble> Display for BitFlag<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let v = self.val;
+        write!(f, "{:b}", v)
+    }
 }
 
 pub trait BitflagAble:
@@ -15,8 +28,10 @@ pub trait BitflagAble:
     + BitXor<Output = Self>
     + Shl<Output = Self>
     + Not<Output = Self>
+    + Add<Output = Self>
     + Default
     + Display
+    + Binary
     + Copy
     + PartialEq
     + From<u8>
@@ -30,12 +45,43 @@ impl<U> BitflagAble for U where
         + BitXor<Output = U>
         + Shl<Output = U>
         + Not<Output = U>
+        + Add<Output = Self>
         + Default
         + Display
+        + Binary
         + Copy
         + PartialEq
         + From<u8>
 {
+}
+
+impl<T: BitflagAble> Add<Self> for BitFlag<T> {
+    type Output = Self;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        Self::new_with_value(self.val.add(rhs.val))
+    }
+}
+
+impl<T: BitflagAble, U: BitflagAble + Add<T, Output = T>> Add<U> for BitFlag<T> {
+    type Output = Self;
+
+    fn add(self, rhs: U) -> Self::Output {
+        let v = rhs.add(self.val);
+        Self::new_with_value(v)
+    }
+}
+
+impl<T: BitflagAble, U: BitflagAble + Add<T, Output = T>> AddAssign<U> for BitFlag<T> {
+    fn add_assign(&mut self, rhs: U) {
+        self.val = rhs.add(self.val)
+    }
+}
+
+impl<T: BitflagAble> AddAssign<Self> for BitFlag<T> {
+    fn add_assign(&mut self, rhs: Self) {
+        self.val = self.val + rhs.val;
+    }
 }
 
 impl<T: BitflagAble> From<T> for BitFlag<T> {
@@ -77,29 +123,42 @@ impl<T: BitflagAble> BitFlag<T> {
     }
 
     /// Set the bitflags value from `start` to `end` (inclusive) to `val`[0..end-start+1]
-    pub fn set_range<U: BitflagAble>(&mut self, start: u8, end: u8, val: BitFlag<U>) {
-        if start > end || Self::is_overflow(T::from(end)) {
+    pub fn set_range<V: Into<BitFlag<T>>>(&mut self, range: (u8, u8), val: V) {
+        if range.0 > range.1 || Self::is_overflow(T::from(range.1)) {
             return;
         }
 
-        for (i, flag_pos) in (start..=end).enumerate() {
-            self.set_unchecked(T::from(flag_pos), val.get_unchecked(U::from(i as u8)));
+        self.set_range_unchecked(range, val);
+    }
+
+    /// Set the bitflags value from `start` to `end` (inclusive) to `val`[0..end-start+1]
+    pub fn set_range_unchecked<V: Into<BitFlag<T>>>(&mut self, range: (u8, u8), val: V) {
+        let val = val.into();
+
+        for (i, flag_pos) in (range.0..=range.1).enumerate() {
+            println!("{:?} {:?}", i, flag_pos);
+            self.set_unchecked(T::from(flag_pos), val.get_unchecked(T::from(i as u8)));
         }
     }
 
     /// Get the value between `start` and `end` as T
-    pub fn get_range(&self, start: u8, end: u8) -> Option<T> {
-        if start > end || Self::is_overflow(T::from(end)) {
+    pub fn get_range(&self, range: (u8, u8)) -> Option<T> {
+        if range.0 > range.1 || Self::is_overflow(T::from(range.1)) {
             return None;
         }
 
+        Some(self.get_range_unchecked(range))
+    }
+
+    /// Get the value between `start` and `end` as T unchecked
+    pub fn get_range_unchecked(&self, range: (u8, u8)) -> T {
         let mut cpy: BitFlag<T> = BitFlag::new();
 
-        for (i, flag_pos) in (start..=end).enumerate() {
+        for (i, flag_pos) in (range.0..=range.1).enumerate() {
             cpy.set_unchecked(T::from(i as u8), self.get_unchecked(T::from(flag_pos)));
         }
 
-        Some(cpy.val)
+        cpy.val
     }
 
     /// Gets a bit at the given [`pos`]
@@ -216,35 +275,35 @@ mod tests {
         let mut bf: BitFlag<u32> = BitFlag::new();
         let max = u32::MAX;
 
-        bf.set_range(3, 6, max.into());
+        bf.set_range((3, 6), max);
         assert_eq!(bf.raw(), 0b01111000);
 
         bf.clear();
 
-        bf.set_range(28, 31, max.into());
+        bf.set_range((28, 31), max);
         assert_eq!(bf.raw(), 0b11110000000000000000000000000000);
 
         bf.clear();
 
         let e: u32 = 0b1011;
         let e: BitFlag<u32> = BitFlag::new_with_value(e);
-        bf.set_range(28, 31, e);
+        bf.set_range((28, 31), e);
         assert_eq!(bf.raw(), 0b10110000000000000000000000000000);
     }
 
     #[test]
     fn test_get_range() {
         let bf: BitFlag<u8> = BitFlag::new_with_value(0b101110);
-        assert_eq!(bf.get_range(3, 0), None);
+        assert_eq!(bf.get_range((3, 0)), None);
 
-        assert_eq!(bf.get_range(1, 2), Some(0b11));
+        assert_eq!(bf.get_range((1, 2)), Some(0b11));
 
-        assert_eq!(bf.get_range(0, 3), Some(0b1110));
+        assert_eq!(bf.get_range((0, 3)), Some(0b1110));
 
-        assert_eq!(bf.get_range(0, 4), Some(0b01110));
+        assert_eq!(bf.get_range((0, 4)), Some(0b01110));
 
-        assert_eq!(bf.get_range(4, 5), Some(0b10));
+        assert_eq!(bf.get_range((4, 5)), Some(0b10));
 
-        assert_eq!(bf.get_range(0, 5), Some(0b101110));
+        assert_eq!(bf.get_range((0, 5)), Some(0b101110));
     }
 }
