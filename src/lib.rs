@@ -58,6 +58,7 @@ impl<U> BitflagAble for U where
 impl<T: BitflagAble> Add<Self> for BitFlag<T> {
     type Output = Self;
 
+    #[inline]
     fn add(self, rhs: Self) -> Self::Output {
         Self::new_with_value(self.val.add(rhs.val))
     }
@@ -66,6 +67,7 @@ impl<T: BitflagAble> Add<Self> for BitFlag<T> {
 impl<T: BitflagAble, U: BitflagAble + Add<T, Output = T>> Add<U> for BitFlag<T> {
     type Output = Self;
 
+    #[inline]
     fn add(self, rhs: U) -> Self::Output {
         let v = rhs.add(self.val);
         Self::new_with_value(v)
@@ -73,18 +75,21 @@ impl<T: BitflagAble, U: BitflagAble + Add<T, Output = T>> Add<U> for BitFlag<T> 
 }
 
 impl<T: BitflagAble, U: BitflagAble + Add<T, Output = T>> AddAssign<U> for BitFlag<T> {
+    #[inline]
     fn add_assign(&mut self, rhs: U) {
         self.val = rhs.add(self.val)
     }
 }
 
 impl<T: BitflagAble> AddAssign<Self> for BitFlag<T> {
+    #[inline]
     fn add_assign(&mut self, rhs: Self) {
         self.val = self.val + rhs.val;
     }
 }
 
 impl<T: BitflagAble> From<T> for BitFlag<T> {
+    #[inline]
     fn from(t: T) -> Self {
         Self { val: t }
     }
@@ -92,16 +97,19 @@ impl<T: BitflagAble> From<T> for BitFlag<T> {
 
 impl<T: BitflagAble> BitFlag<T> {
     /// Creates a new BitFlag value
+    #[inline]
     pub fn new() -> Self {
         Self::default()
     }
 
     /// Creates a new BitFlag with a set value
+    #[inline]
     pub fn new_with_value(val: T) -> Self {
         Self { val }
     }
 
     /// Sets a bit at the given `pos` to `val`
+    #[inline]
     pub fn set(&mut self, pos: T, val: bool) {
         // Check for overflow
         if Self::is_overflow(pos) {
@@ -112,6 +120,7 @@ impl<T: BitflagAble> BitFlag<T> {
     }
 
     /// Sets a bit at the given `pos` to `val` without overflow checks
+    #[inline]
     pub fn set_unchecked(&mut self, pos: T, val: bool) {
         let mask = T::from(1_u8) << pos;
 
@@ -123,6 +132,7 @@ impl<T: BitflagAble> BitFlag<T> {
     }
 
     /// Set the bitflags value from `start` to `end` (inclusive) to `val`[0..end-start+1]
+    #[inline]
     pub fn set_range<V: Into<BitFlag<T>>>(&mut self, range: (u8, u8), val: V) {
         if range.0 > range.1 || Self::is_overflow(T::from(range.1)) {
             return;
@@ -132,16 +142,17 @@ impl<T: BitflagAble> BitFlag<T> {
     }
 
     /// Set the bitflags value from `start` to `end` (inclusive) to `val`[0..end-start+1]
+    #[inline]
     pub fn set_range_unchecked<V: Into<BitFlag<T>>>(&mut self, range: (u8, u8), val: V) {
         let val = val.into();
 
         for (i, flag_pos) in (range.0..=range.1).enumerate() {
-            println!("{:?} {:?}", i, flag_pos);
             self.set_unchecked(T::from(flag_pos), val.get_unchecked(T::from(i as u8)));
         }
     }
 
     /// Get the value between `start` and `end` as T
+    #[inline]
     pub fn get_range(&self, range: (u8, u8)) -> Option<T> {
         if range.0 > range.1 || Self::is_overflow(T::from(range.1)) {
             return None;
@@ -151,6 +162,7 @@ impl<T: BitflagAble> BitFlag<T> {
     }
 
     /// Get the value between `start` and `end` as T unchecked
+    #[inline]
     pub fn get_range_unchecked(&self, range: (u8, u8)) -> T {
         let mut cpy: BitFlag<T> = BitFlag::new();
 
@@ -162,6 +174,7 @@ impl<T: BitflagAble> BitFlag<T> {
     }
 
     /// Gets a bit at the given [`pos`]
+    #[inline]
     pub fn get(&self, pos: T) -> bool {
         if Self::is_overflow(pos) {
             return false;
@@ -171,28 +184,33 @@ impl<T: BitflagAble> BitFlag<T> {
     }
 
     /// Gets a bit at the given [`pos`]
+    #[inline]
     pub fn get_unchecked(&self, pos: T) -> bool {
         let mask = T::from(1_u8) << pos;
         (self.val & mask) == mask
     }
 
     /// Get the raw value of the bitflag
+    #[inline]
     pub fn raw(&self) -> T {
         self.val
     }
 
     /// Clears the value to `T::default()`
+    #[inline]
     pub fn clear(&mut self) {
         self.val = T::default();
     }
 
     /// Returns true if [`pos`] would cause an overflow
+    #[inline]
     pub fn is_overflow(pos: T) -> bool {
         let size = T::from((std::mem::size_of::<T>() * 8) as u8);
         pos >= size
     }
 
     ///  Inverts all bits in [`val`]
+    #[inline]
     fn invert(val: T) -> T {
         (!val) as T
     }
