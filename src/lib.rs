@@ -1,98 +1,15 @@
+pub mod bitflagable;
+
+use bitflagable::BitflagAble;
 use std::{
-    fmt::{Binary, Debug, Display},
-    ops::{Add, AddAssign, BitAnd, BitOr, BitXor, Not, Shl},
+    fmt::{Debug, Display},
+    ops::{Add, AddAssign},
 };
 
+/// Wrapper for any type T that can be used for bitflags.
 #[derive(Clone, Copy, Default)]
-pub struct BitFlag<T: BitflagAble> {
+pub struct BitFlag<T> {
     val: T,
-}
-
-impl<T: BitflagAble> Debug for BitFlag<T> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self)
-    }
-}
-
-impl<T: BitflagAble> Display for BitFlag<T> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let v = self.val;
-        write!(f, "{:b}", v)
-    }
-}
-
-pub trait BitflagAble:
-    BitOr<Output = Self>
-    + PartialOrd
-    + BitAnd<Output = Self>
-    + BitXor<Output = Self>
-    + Shl<Output = Self>
-    + Not<Output = Self>
-    + Add<Output = Self>
-    + Default
-    + Display
-    + Binary
-    + Copy
-    + PartialEq
-    + From<u8>
-{
-}
-
-impl<U> BitflagAble for U where
-    U: BitOr<Output = U>
-        + PartialOrd
-        + BitAnd<Output = U>
-        + BitXor<Output = U>
-        + Shl<Output = U>
-        + Not<Output = U>
-        + Add<Output = Self>
-        + Default
-        + Display
-        + Binary
-        + Copy
-        + PartialEq
-        + From<u8>
-{
-}
-
-impl<T: BitflagAble> Add<Self> for BitFlag<T> {
-    type Output = Self;
-
-    #[inline]
-    fn add(self, rhs: Self) -> Self::Output {
-        Self::new_with_value(self.val.add(rhs.val))
-    }
-}
-
-impl<T: BitflagAble, U: BitflagAble + Add<T, Output = T>> Add<U> for BitFlag<T> {
-    type Output = Self;
-
-    #[inline]
-    fn add(self, rhs: U) -> Self::Output {
-        let v = rhs.add(self.val);
-        Self::new_with_value(v)
-    }
-}
-
-impl<T: BitflagAble, U: BitflagAble + Add<T, Output = T>> AddAssign<U> for BitFlag<T> {
-    #[inline]
-    fn add_assign(&mut self, rhs: U) {
-        self.val = rhs.add(self.val)
-    }
-}
-
-impl<T: BitflagAble> AddAssign<Self> for BitFlag<T> {
-    #[inline]
-    fn add_assign(&mut self, rhs: Self) {
-        self.val = self.val + rhs.val;
-    }
-}
-
-impl<T: BitflagAble> From<T> for BitFlag<T> {
-    #[inline]
-    fn from(t: T) -> Self {
-        Self { val: t }
-    }
 }
 
 impl<T: BitflagAble> BitFlag<T> {
@@ -186,8 +103,8 @@ impl<T: BitflagAble> BitFlag<T> {
     /// Gets a bit at the given [`pos`]
     #[inline]
     pub fn get_unchecked(&self, pos: T) -> bool {
-        let mask = T::from(1_u8) << pos;
-        (self.val & mask) == mask
+        let mask = T::from(1u8) << pos;
+        (self.val & mask) != T::from(0u8)
     }
 
     /// Get the raw value of the bitflag
@@ -205,14 +122,120 @@ impl<T: BitflagAble> BitFlag<T> {
     /// Returns true if [`pos`] would cause an overflow
     #[inline]
     pub fn is_overflow(pos: T) -> bool {
-        let size = T::from((std::mem::size_of::<T>() * 8) as u8);
-        pos >= size
+        pos >= T::from(Self::size() as u8)
+    }
+
+    /// Returns the amonut of bits set
+    #[inline]
+    pub fn len(&self) -> usize {
+        (0..Self::size())
+            .filter(|i| self.get_unchecked(T::from(*i as u8)))
+            .count()
+    }
+
+    /// Returns `true` if there is no bit set.
+    #[inline]
+    pub fn is_empty(&self) -> bool {
+        T::from(0u8) == self.val
+    }
+
+    /// Returns an iterator over all fields of the bitflag.
+    #[inline]
+    pub fn iter<'a>(&'a self) -> impl Iterator<Item = bool> + 'a {
+        (0..Self::size()).map(move |i| self.get_unchecked(T::from(i as u8)))
+    }
+
+    /// Returns the amonut of bits that can be accessed for the given base type T
+    #[inline]
+    pub fn size() -> usize {
+        std::mem::size_of::<T>() * 8
     }
 
     ///  Inverts all bits in [`val`]
     #[inline]
     fn invert(val: T) -> T {
         (!val) as T
+    }
+}
+
+impl<T: BitflagAble> Debug for BitFlag<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self)
+    }
+}
+
+impl<T: BitflagAble> Display for BitFlag<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:b}", self.val)
+    }
+}
+
+impl<T: BitflagAble> Add<Self> for BitFlag<T> {
+    type Output = Self;
+
+    #[inline]
+    fn add(self, rhs: Self) -> Self::Output {
+        Self::new_with_value(self.val.add(rhs.val))
+    }
+}
+
+impl<T: BitflagAble, U: BitflagAble + Add<T, Output = T>> Add<U> for BitFlag<T> {
+    type Output = Self;
+
+    #[inline]
+    fn add(self, rhs: U) -> Self::Output {
+        let v = rhs.add(self.val);
+        Self::new_with_value(v)
+    }
+}
+
+impl<T: BitflagAble, U: BitflagAble + Add<T, Output = T>> AddAssign<U> for BitFlag<T> {
+    #[inline]
+    fn add_assign(&mut self, rhs: U) {
+        self.val = rhs.add(self.val)
+    }
+}
+
+impl<T: BitflagAble> AddAssign<Self> for BitFlag<T> {
+    #[inline]
+    fn add_assign(&mut self, rhs: Self) {
+        self.val = self.val + rhs.val;
+    }
+}
+
+impl<T: BitflagAble> From<T> for BitFlag<T> {
+    #[inline]
+    fn from(t: T) -> Self {
+        Self { val: t }
+    }
+}
+
+#[cfg(feature = "with_serde")]
+impl<T> serde::Serialize for BitFlag<T>
+where
+    T: serde::Serialize,
+{
+    #[inline]
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        self.val.serialize(serializer)
+    }
+}
+
+#[cfg(feature = "with_serde")]
+impl<'a, T> serde::Deserialize<'a> for BitFlag<T>
+where
+    T: serde::Deserialize<'a>,
+{
+    #[inline]
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'a>,
+    {
+        let val = T::deserialize(deserializer)?;
+        Ok(BitFlag { val })
     }
 }
 
@@ -223,7 +246,8 @@ mod tests {
     #[test]
     fn check_overflow() {
         let mut bf8: BitFlag<u8> = BitFlag::new();
-        // Set won't do anything
+        assert!(bf8.is_empty());
+        // Set won't do anything as we're overflowing on purpose
         bf8.set(8, true);
         assert_eq!(bf8.get(8), false);
     }
@@ -235,6 +259,7 @@ mod tests {
             bf8.set(i, false);
             assert_eq!(bf8.get(i), false);
         }
+        assert!(bf8.is_empty());
     }
 
     #[test]
@@ -244,6 +269,7 @@ mod tests {
             bf8.set(i, true);
             assert_eq!(bf8.get(i), true);
         }
+        assert!(!bf8.is_empty());
     }
 
     #[test]
@@ -256,6 +282,7 @@ mod tests {
             bf8.set(i, false);
             assert_eq!(bf8.get(i), false);
         }
+        assert!(bf8.is_empty());
     }
 
     #[test]
@@ -286,6 +313,7 @@ mod tests {
             bf8.set(i, false);
             assert_eq!(bf8.get(i), false);
         }
+        assert!(bf8.is_empty());
     }
 
     #[test]
@@ -307,6 +335,7 @@ mod tests {
         let e: BitFlag<u32> = BitFlag::new_with_value(e);
         bf.set_range((28, 31), e);
         assert_eq!(bf.raw(), 0b10110000000000000000000000000000);
+        assert!(!bf.is_empty());
     }
 
     #[test]
